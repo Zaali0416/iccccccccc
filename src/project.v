@@ -21,8 +21,7 @@ module tt_um_wms_system (
     // 1. PIN MAPPING & INTERFACE CONVERSION
     // -------------------------------------------------------------------------
     
-    // Tiny Tapeout supplies an active-low reset (rst_n).
-    // Convert to Active-High for internal RESET_LOGIC.
+    // Convert Active-Low reset (rst_n) to Active-High for internal RESET_LOGIC
     wire reset_logic = ~rst_n;
 
     // Direct Input Assignments (ui_in)
@@ -183,7 +182,7 @@ module wms_debouncer #(
         always @(posedge clk or posedge reset) begin
             if (reset) begin
                 sync_0    <= 1'b0;
-                sync_1    <= 1 meb0;
+                sync_1    <= 1'b0;
                 count     <= 20'd0;
                 clean_out <= 1'b0;
             end else begin
