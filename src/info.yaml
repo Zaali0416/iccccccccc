@@ -4,15 +4,13 @@ project:
   discord: ""
   description: "Debounced Water Management Controller with 60s Grace Timer & Alarm Mute Latch"
   language: "Verilog"
-  
-  # Top module MUST match the wrapper in project.v
   top_module: "tt_um_wms_system"
 
-  # List source files inside src/
+  # List of verilog files relative to src/
   source_files:
     - "project.v"
 
-# Pinout mapping for Tiny Tapeout documentation and board layout
+# Pinout configuration for hardware layout
 pinout:
   inputs:
     - "Tank 10%"
@@ -34,10 +32,16 @@ pinout:
     - "Tank 100% LED"
   bidirectional:
     - "Alarm Mute Button"
-    - "Unused"
-    - "Unused"
-    - "Unused"
-    - "Unused"
-    - "Unused"
-    - "Unused"
-    - "Unused"
+    - "none"
+    - "none"
+    - "none"
+    - "none"
+    - "none"
+    - "none"
+    - "none"
+
+# Required by the docs generation workflow
+documentation:
+  how_it_works: "Monitors upper and lower tank water sensors with digital debouncing and CDC synchronization. Controls pump output based on hysteresis and tracks a 60-second grace timer for flow verification."
+  how_to_test: "Apply clock and active-low reset. Toggle input sensors to observe pump control on uo_out[0] and fault triggers when water flow probe is inactive."
+  external_hardware: "Water level float sensors, pump relay module, buzzer, status LEDs."
