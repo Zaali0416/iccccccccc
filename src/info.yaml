@@ -1,16 +1,20 @@
+# Tiny Tapeout project information
 project:
-  title: "Water Management System ASIC"
-  author: "WMS Design Team"
-  discord: ""
-  description: "Debounced Water Management Controller with 60s Grace Timer & Alarm Mute Latch"
-  language: "Verilog"
-  top_module: "tt_um_wms_system"
+  title:        "Water Management System ASIC"
+  author:       "WMS Design Team"
+  discord:      ""
+  description:  "Debounced Water Management Controller with 60s Grace Timer & Alarm Mute Latch"
+  language:     "Verilog"
+  clock_hz:     50000000
 
-  # List of verilog files relative to src/
-  source_files:
-    - "project.v"
+# Top module name (MUST start with tt_um_ and be at top level)
+top_module:  "tt_um_wms_system"
 
-# Pinout configuration for hardware layout
+# Source files (relative to src/)
+source_files:
+  - "project.v"
+
+# Pinout configuration for board layout and pin mapping
 pinout:
   inputs:
     - "Tank 10%"
@@ -40,7 +44,7 @@ pinout:
     - "none"
     - "none"
 
-# Required by the docs generation workflow
+# Documentation section required by Tiny Tapeout
 documentation:
   how_it_works: "Monitors upper and lower tank water sensors with digital debouncing and CDC synchronization. Controls pump output based on hysteresis and tracks a 60-second grace timer for flow verification."
   how_to_test: "Apply clock and active-low reset. Toggle input sensors to observe pump control on uo_out[0] and fault triggers when water flow probe is inactive."
