@@ -1,9 +1,19 @@
-documentation: 
-  title: "Water Management System Controller"
-  author: "Your Name"
-  description: "Automated pump hysteresis, 60s grace timer, and fault detection system."
+project:
+  title: "Water Management System ASIC"
+  author: "WMS Design Team"
+  discord: ""
+  description: "Debounced Water Management Controller with 60s Grace Timer & Alarm Mute Latch"
+  language: "Verilog"
+  
+  # Top module MUST match the wrapper in project.v
+  top_module: "tt_um_wms_system"
 
-  # Pinout Configuration
+  # List source files inside src/
+  source_files:
+    - "project.v"
+
+# Pinout mapping for Tiny Tapeout documentation and board layout
+pinout:
   inputs:
     - "Tank 10%"
     - "Tank 30%"
@@ -12,22 +22,22 @@ documentation:
     - "Tank 90%"
     - "Tank 100%"
     - "Lower Tank Sensor"
-    - "Flow Probe"
+    - "Water Flow Probe"
   outputs:
-    - "Motor Output"
-    - "Buzzer Output"
-    - "Error LED"
+    - "Pump Relay Driver"
+    - "Fault Indicator LED"
+    - "Alarm Sounder Output"
     - "Lower Tank Active LED"
-    - "Timer Sec Ones [0]"
-    - "Timer Sec Ones [1]"
-    - "Timer Sec Ones [2]"
-    - "Timer Sec Ones [3]"
+    - "Tank 10% LED"
+    - "Tank 50% LED"
+    - "Tank 90% LED"
+    - "Tank 100% LED"
   bidirectional:
-    - "Mute Button"
-    - "none"
-    - "none"
-    - "none"
-    - "none"
-    - "none"
-    - "none"
-    - "none"
+    - "Alarm Mute Button"
+    - "Unused"
+    - "Unused"
+    - "Unused"
+    - "Unused"
+    - "Unused"
+    - "Unused"
+    - "Unused"
