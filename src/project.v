@@ -1,224 +1,351 @@
-// ============================================================================
-// File:    wms_ic_system.v
-// Description: Consolidated Single-File Design containing Top-Level Wrapper, 
-//              Core Controller, and 7-Segment Decoders.
-// Target:  DE1-SoC Board (5CSEMA5F31C6) / Generic ASIC Standard Cell Flow
-// Status:  LOCKED & VALIDATED
-// ============================================================================
+// =============================================================================
+// File:        project.v
+// Purpose:     Tiny Tapeout Top-Level Wrapper for WMS IC ASIC System
+// Target:      Tiny Tapeout (SkyWater 130nm PDK / OpenLane Flow)
+// =============================================================================
 
-// ----------------------------------------------------------------------------
-// 1. TOP-LEVEL MODULE
-// ----------------------------------------------------------------------------
-module wms_ic_fpga_top (
-    input  wire       CLOCK_50,     // 50MHz Clock Input
-    input  wire       RESET_BTN,    // Pushbutton KEY0 (Active-Low)
-    input  wire [5:0] TANK_SENSORS, // Upper Tank: SW0-SW5 (10% to 100%)
-    input  wire       LT_SENSOR,    // Lower Tank Sensor (SW6)
-    input  wire       FLOW_PROBE,   // Water Flow Sensor Probe (SW7)
-    input  wire       MUTE_BTN,     // Mute Button KEY1 (Active-Low)
+`default_nettype none
 
-    output wire       MOTOR_OUT,    // Pump Control Output (LEDR0)
-    output wire       BUZZER_OUT,   // Audio Alarm Output (LEDR1)
-    output wire       ERROR_LED,    // Fault Signal Indicator LED (LEDR2)
-    output wire       LT_LED,       // Lower Tank Active LED (LEDR3)
-    output wire [5:0] TANK_LEDS,    // Upper Tank Level Display (LEDR4-9)
-
-    // 7-Segment Displays (Active-Low)
-    output wire [6:0] HEX0,         // Seconds (Units: 0-9)
-    output wire [6:0] HEX1,         // Seconds (Tens: 0-5)
-    output wire [6:0] HEX2          // Minutes (Units: 0-9)
+module tt_um_wms_system (
+    input  wire [7:0] ui_in,    // Dedicated inputs
+    output wire [7:0] uo_out,   // Dedicated outputs
+    input  wire [7:0] uio_in,   // Bidirectional pins (Input path)
+    output wire [7:0] uio_out,  // Bidirectional pins (Output path)
+    output wire [7:0] uio_oe,   // Bidirectional pins (Enable path: 1=Output, 0=Input)
+    input  wire       ena,      // Always 1 when powered
+    input  wire       clk,      // System clock input
+    input  wire       rst_n     // Active-LOW system reset
 );
 
-    // Active-Low Pushbutton Inversion
-    wire reset_logic = ~RESET_BTN;  // KEY0 Pressed = HIGH
-    wire mute_active = ~MUTE_BTN;   // KEY1 Pressed = HIGH
+    // -------------------------------------------------------------------------
+    // 1. PIN MAPPING & INTERFACE CONVERSION
+    // -------------------------------------------------------------------------
+    
+    // Tiny Tapeout supplies an active-low reset (rst_n).
+    // Convert to Active-High for internal RESET_LOGIC.
+    wire reset_logic = ~rst_n;
 
-    wire [3:0] sec_ones;
-    wire [3:0] sec_tens;
-    wire [3:0] min_ones;
+    // Direct Input Assignments (ui_in)
+    wire [5:0] tank_sensors = ui_in[5:0]; // {UP_100, UP_90, UP_70, UP_50, UP_30, UP_10}
+    wire       lt_signal    = ui_in[6];   // Lower Tank Level Sensor
+    wire       wf_probe     = ui_in[7];   // Water Flow Confirmation Probe
 
-    // Core Controller Instantiation
-    wms_ic_core CORE (
-        .clk_50mhz   (CLOCK_50),
-        .reset_logic (reset_logic),
-        .up_10       (TANK_SENSORS[0]),
-        .up_30       (TANK_SENSORS[1]),
-        .up_50       (TANK_SENSORS[2]),
-        .up_70       (TANK_SENSORS[3]),
-        .up_90       (TANK_SENSORS[4]),
-        .up_100      (TANK_SENSORS[5]),
-        .lt_signal   (LT_SENSOR),
-        .wf_prob     (FLOW_PROBE),
-        .buzz_off    (mute_active),
-        .motor       (MOTOR_OUT),
-        .buzzer      (BUZZER_OUT),
-        .error_led   (ERROR_LED),
-        .lt_led      (LT_LED),
-        .led_up      (TANK_LEDS),
-        .sec_ones    (sec_ones),
-        .sec_tens    (sec_tens),
-        .min_ones    (min_ones)
+    // Bidirectional Input Assignment (uio_in)
+    wire       buzz_off     = uio_in[0];  // Mute Alarm Button
+
+    // Unused Bidirectional pins configuration (Set to Inputs)
+    assign uio_oe  = 8'b0000_0000;
+    assign uio_out = 8'b0000_0000;
+
+    // Core Output Wires
+    wire       motor;
+    wire       error;
+    wire       buzzer;
+    wire [5:0] led_up;
+    wire       led_lt;
+
+    // -------------------------------------------------------------------------
+    // 2. TOP-LEVEL ASIC MODULE INSTANTIATION
+    // -------------------------------------------------------------------------
+    wms_ic_gatelevel_top u_wms_asic_top (
+        .CLK          (clk),
+        .RESET_LOGIC  (reset_logic),
+        .BUZZ_OFF     (buzz_off),
+        .TANK_SENSORS (tank_sensors),
+        .LT_SIGNAL    (lt_signal),
+        .WF_PROBE     (wf_probe),
+        .MOTOR        (motor),
+        .ERROR        (error),
+        .BUZZER       (buzzer),
+        .LED_UP       (led_up),
+        .LED_LT       (led_lt)
     );
 
-    // 7-Segment BCD Displays Instantiation
-    seven_seg_decoder U_HEX0 ( .hex_digit(sec_ones), .seg_out(HEX0) );
-    seven_seg_decoder U_HEX1 ( .hex_digit(sec_tens), .seg_out(HEX1) );
-    seven_seg_decoder U_HEX2 ( .hex_digit(min_ones), .seg_out(HEX2) );
+    // -------------------------------------------------------------------------
+    // 3. OUTPUT MAPPING (uo_out)
+    // -------------------------------------------------------------------------
+    assign uo_out[0] = motor;      // Pump Relay Driver
+    assign uo_out[1] = error;      // Fault Indicator LED
+    assign uo_out[2] = buzzer;     // Alarm Sounder Output
+    assign uo_out[3] = led_lt;     // Lower Tank Level Active LED
+    assign uo_out[4] = led_up[0];  // Upper Tank 10% Level LED
+    assign uo_out[5] = led_up[2];  // Upper Tank 50% Level LED
+    assign uo_out[6] = led_up[4];  // Upper Tank 90% Level LED
+    assign uo_out[7] = led_up[5];  // Upper Tank 100% Level LED
 
 endmodule
 
-// ----------------------------------------------------------------------------
-// 2. CORE LOGIC MODULE (Pump Hysteresis, 60s Grace Timer, Mute Latch)
-// ----------------------------------------------------------------------------
-module wms_ic_core (
-    input  wire       clk_50mhz,
-    input  wire       reset_logic,    // Reset (Active High)
-    input  wire       up_10, up_30, up_50, up_70, up_90, up_100,
-    input  wire       lt_signal,      // Lower tank sensor
-    input  wire       wf_prob,        // Flow probe
-    input  wire       buzz_off,       // Mute button pulse
-    
-    output reg        motor,
-    output reg        buzzer,
-    output reg        error_led,
-    output wire       lt_led,
-    output wire [5:0] led_up,
 
-    output reg  [3:0] sec_ones,
-    output reg  [3:0] sec_tens,
-    output reg  [3:0] min_ones
+// =============================================================================
+// 1. TOP-LEVEL ASIC GATE-LEVEL WRAPPER WITH ON-CHIP DEBOUNCERS
+// =============================================================================
+module wms_ic_gatelevel_top (
+    input  wire       CLK,             // External clock input (50 MHz)
+    input  wire       RESET_LOGIC,     // System reset button (Active-High)
+    input  wire       BUZZ_OFF,        // Alarm mute button
+
+    // Tank Sensors & Probes
+    input  wire [5:0] TANK_SENSORS,    // {UP_100, UP_90, UP_70, UP_50, UP_30, UP_10}
+    input  wire       LT_SIGNAL,       // Lower Tank Level Probe
+    input  wire       WF_PROBE,        // Water Flow Confirmation Probe
+
+    // System Outputs
+    output wire       MOTOR,           // Pump Relay Drive Output
+    output wire       ERROR,           // Fault Indicator Output
+    output wire       BUZZER,          // Alarm Sounder Output
+    output wire [5:0] LED_UP,          // 6-Level Upper Tank LED Outputs
+    output wire       LED_LT           // Lower Tank Level LED Output
 );
 
-    // Direct Status Feedback LED Pass-through
-    assign led_up = {up_100, up_90, up_70, up_50, up_30, up_10};
-    assign lt_led = lt_signal;
+    // --- Clean Internal Signals after Debouncing / CDC Synchronization ---
+    wire       wf_probe_clean;
+    wire       lt_signal_clean;
+    wire       buzz_off_clean;
+
+    // Direct Lower Tank LED output drives directly from clean probe state
+    assign LED_LT = lt_signal_clean;
+
+    // --- On-Chip Digital Debouncers (Filter chatter & water sloshing) ---
+    wms_debouncer u_deb_wf (
+        .clk       (CLK),
+        .reset     (RESET_LOGIC),
+        .async_in  (WF_PROBE),
+        .clean_out (wf_probe_clean)
+    );
+
+    wms_debouncer u_deb_lt (
+        .clk       (CLK),
+        .reset     (RESET_LOGIC),
+        .async_in  (LT_SIGNAL),
+        .clean_out (lt_signal_clean)
+    );
+
+    wms_debouncer u_deb_buzz (
+        .clk       (CLK),
+        .reset     (RESET_LOGIC),
+        .async_in  (BUZZ_OFF),
+        .clean_out (buzz_off_clean)
+    );
+
+    // --- Core Logic Engine Instantiation ---
+    wms_ic_core u_wms_core (
+        .CLK          (CLK),
+        .RESET_LOGIC  (RESET_LOGIC),
+        .BUZZ_OFF     (buzz_off_clean),
+        .UP_100       (TANK_SENSORS[5]),
+        .UP_90        (TANK_SENSORS[4]),
+        .UP_70        (TANK_SENSORS[3]),
+        .UP_50        (TANK_SENSORS[2]),
+        .UP_30        (TANK_SENSORS[1]),
+        .UP_10        (TANK_SENSORS[0]),
+        .LT_SIGNAL    (lt_signal_clean),
+        .WF_PROBE     (wf_probe_clean),
+        .LED_UP_100   (LED_UP[5]),
+        .LED_UP_90    (LED_UP[4]),
+        .LED_UP_70    (LED_UP[3]),
+        .LED_UP_50    (LED_UP[2]),
+        .LED_UP_30    (LED_UP[1]),
+        .LED_UP_10    (LED_UP[0]),
+        .MOTOR        (MOTOR),
+        .ERROR        (ERROR),
+        .BUZZER       (BUZZER)
+    );
+
+endmodule
+
+
+// =============================================================================
+// 2. REUSABLE DIGITAL DEBOUNCER & CDC SYNCHRONIZER MODULE
+// =============================================================================
+module wms_debouncer #(
+    parameter [19:0] DEBOUNCE_LIMIT = 20'd1_000_000 // Default: 20ms at 50 MHz
+)(
+    input  wire clk,
+    input  wire reset,
+    input  wire async_in,
+    output reg  clean_out
+);
+
+    `ifdef SIMULATION
+        // Fast single-cycle passthrough for top-level system simulation
+        always @(posedge clk or posedge reset) begin
+            if (reset) begin
+                clean_out <= 1'b0;
+            end else begin
+                clean_out <= async_in;
+            end
+        end
+    `else
+        // Target Silicon / Hardware Verification Branch
+        reg sync_0, sync_1;
+        reg [19:0] count;
+
+        always @(posedge clk or posedge reset) begin
+            if (reset) begin
+                sync_0    <= 1'b0;
+                sync_1    <= 1 meb0;
+                count     <= 20'd0;
+                clean_out <= 1'b0;
+            end else begin
+                // 2-Stage CDC Synchronizer (Prevents metastability)
+                sync_0 <= async_in;
+                sync_1 <= sync_0;
+
+                // Filtering counter logic with abort-on-bounce reset
+                if (sync_1 != clean_out) begin
+                    if (count >= DEBOUNCE_LIMIT - 1'b1) begin
+                        clean_out <= sync_1;
+                        count     <= 20'd0;
+                    end else begin
+                        count <= count + 1'b1;
+                    end
+                end else begin
+                    count <= 20'd0;
+                end
+            end
+        end
+    `endif
+
+endmodule
+
+
+// =============================================================================
+// 3. CORE LOGIC ENGINE (Hysteresis, 60s Grace Timer & Latched Mute)
+// =============================================================================
+module wms_ic_core (
+    input  wire CLK,
+    input  wire RESET_LOGIC,
+    input  wire UP_10,
+    input  wire UP_30,
+    input  wire UP_50,
+    input  wire UP_70,
+    input  wire UP_90,
+    input  wire UP_100,
+    input  wire LT_SIGNAL,
+    input  wire WF_PROBE,
+    input  wire BUZZ_OFF,
+
+    output wire LED_UP_10,
+    output wire LED_UP_30,
+    output wire LED_UP_50,
+    output wire LED_UP_70,
+    output wire LED_UP_90,
+    output wire LED_UP_100,
+
+    output reg  MOTOR,
+    output reg  ERROR,
+    output reg  BUZZER
+);
+
+    // Direct LED passthrough
+    assign LED_UP_10  = UP_10;
+    assign LED_UP_30  = UP_30;
+    assign LED_UP_50  = UP_50;
+    assign LED_UP_70  = UP_70;
+    assign LED_UP_90  = UP_90;
+    assign LED_UP_100 = UP_100;
+
+    // Shared "Reset Logic" clear term:
+    wire fault_clear = WF_PROBE || (~LT_SIGNAL);
 
     // --- A. Motor Hysteresis Latch ---
     reg pump_active;
 
-    always @(posedge clk_50mhz or posedge reset_logic) begin
-        if (reset_logic) begin
+    always @(posedge CLK or posedge RESET_LOGIC) begin
+        if (RESET_LOGIC) begin
             pump_active <= 1'b0;
         end else begin
-            // Turn ON pump when Lower Tank has water and Upper Tank is 0%
-            if (lt_signal && (~up_10)) begin
+            // Turn pump ON: Lower Tank has water AND Upper Tank is 0%
+            if (LT_SIGNAL && (~UP_10)) begin
                 pump_active <= 1'b1;
-            end 
-            // Turn OFF pump when Upper Tank reaches 100% OR Lower Tank is empty
-            else if (up_100 || (~lt_signal)) begin
+            end
+            // Turn pump OFF: Upper Tank is 100% full OR Lower Tank empty
+            else if (UP_100 || (~LT_SIGNAL)) begin
                 pump_active <= 1'b0;
             end
         end
     end
 
-    // --- B. 1-Second Clock Divider & 60-Second Grace Timer ---
-    reg [25:0] clk_divider;
-    wire tick_1sec = (clk_divider == 26'd49_999_999);
+    // --- B. Clock Divider & Grace Timer ---
+    `ifdef SIMULATION
+        // Fast tick for rapid simulation execution
+        wire tick_1sec = 1'b1;
+    `else
+        reg [25:0] clk_divider;
+        wire tick_1sec = (clk_divider == 26'd49_999_999);
+    `endif
 
-    reg error_latched;
-    wire flow_fault = pump_active && (~wf_prob);
+    reg [5:0] sec_counter;
+    reg       error_latched;
+    wire      flow_fault = pump_active && (~WF_PROBE);
 
-    always @(posedge clk_50mhz or posedge reset_logic) begin
-        if (reset_logic) begin
-            clk_divider   <= 26'd0;
-            sec_ones      <= 4'd0;
-            sec_tens      <= 4'd0;
-            min_ones      <= 4'd0;
+    always @(posedge CLK or posedge RESET_LOGIC) begin
+        if (RESET_LOGIC) begin
+            `ifndef SIMULATION
+                clk_divider <= 26'd0;
+            `endif
+            sec_counter   <= 6'd0;
             error_latched <= 1'b0;
-        end else if (up_100) begin
-            // Reset state automatically if full condition met
-            clk_divider   <= 26'd0;
-            sec_ones      <= 4'd0;
-            sec_tens      <= 4'd0;
-            min_ones      <= 4'd0;
+        end else if (UP_100 || fault_clear) begin
+            `ifndef SIMULATION
+                clk_divider <= 26'd0;
+            `endif
+            sec_counter   <= 6'd0;
             error_latched <= 1'b0;
         end else begin
             if (flow_fault && !error_latched) begin
                 if (tick_1sec) begin
-                    clk_divider <= 26'd0;
-                    
-                    // Increment 7-Segment BCD Display
-                    if (sec_ones == 4'd9) begin
-                        sec_ones <= 4'd0;
-                        if (sec_tens == 4'd5) begin
-                            sec_tens <= 4'd0;
-                            min_ones <= min_ones + 1'b1;
-                        end else begin
-                            sec_tens <= sec_tens + 1'b1;
-                        end
-                    end else begin
-                        sec_ones <= sec_ones + 1'b1;
-                    end
-
-                    // Trip error trigger after 60 seconds (1:00)
-                    if (sec_tens == 4'd5 && sec_ones == 4'd9) begin
+                    `ifndef SIMULATION
+                        clk_divider <= 26'd0;
+                    `endif
+                    if (sec_counter == 6'd59) begin
                         error_latched <= 1'b1;
+                    end else begin
+                        sec_counter <= sec_counter + 1'b1;
                     end
                 end else begin
-                    clk_divider <= clk_divider + 1'b1;
+                    `ifndef SIMULATION
+                        clk_divider <= clk_divider + 1'b1;
+                    `endif
                 end
-            end 
+            end
             else if (!flow_fault && !error_latched) begin
-                clk_divider <= 26'd0;
-                sec_ones    <= 4'd0;
-                sec_tens    <= 4'd0;
-                min_ones    <= 4'd0;
+                `ifndef SIMULATION
+                    clk_divider <= 26'd0;
+                `endif
+                sec_counter <= 6'd0;
             end
         end
     end
 
-    // --- C. Latched Mute Logic (Flip-Flop Behavior) ---
+    // --- C. Latched Alarm Mute Logic ---
     reg mute_latched;
 
-    always @(posedge clk_50mhz or posedge reset_logic) begin
-        if (reset_logic) begin
+    always @(posedge CLK or posedge RESET_LOGIC) begin
+        if (RESET_LOGIC) begin
             mute_latched <= 1'b0;
-        end else if (up_100 || !error_latched) begin
+        end else if (UP_100 || fault_clear || !error_latched) begin
             mute_latched <= 1'b0;
-        end else if (buzz_off) begin
+        end else if (BUZZ_OFF) begin
             mute_latched <= 1'b1;
         end
     end
 
-    // --- D. Output Generation ---
+    // --- D. Output Combination Logic ---
     always @(*) begin
         if (error_latched) begin
-            motor     = 1'b0;             // Disable pump upon error
-            error_led = 1'b1;             // Assert error LED
-            buzzer    = ~mute_latched;    // Silence buzzer if mute latch set
+            MOTOR  = 1'b0;
+            ERROR  = 1'b1;
+            BUZZER = ~mute_latched;
         end else if (pump_active) begin
-            motor     = 1'b1;             // Pump active during grace window
-            error_led = 1'b0;
-            buzzer    = 1'b0;
+            MOTOR  = 1'b1;
+            ERROR  = 1'b0;
+            BUZZER = 1'b0;
         end else begin
-            motor     = 1'b0;
-            error_led = 1'b0;
-            buzzer    = 1'b0;
+            MOTOR  = 1'b0;
+            ERROR  = 1'b0;
+            BUZZER = 1'b0;
         end
     end
 
-endmodule
-
-// ----------------------------------------------------------------------------
-// 3. 7-SEGMENT BCD DECODER MODULE (Active-Low Outputs)
-// ----------------------------------------------------------------------------
-module seven_seg_decoder (
-    input  wire [3:0] hex_digit,
-    output reg  [6:0] seg_out
-);
-    always @(*) begin
-        case (hex_digit)
-            4'h0: seg_out = 7'b100_0000; // Display 0
-            4'h1: seg_out = 7'b111_1001; // Display 1
-            4'h2: seg_out = 7'b010_0100; // Display 2
-            4'h3: seg_out = 7'b011_0000; // Display 3
-            4'h4: seg_out = 7'b001_1001; // Display 4
-            4'h5: seg_out = 7'b010_0010; // Display 5
-            4'h6: seg_out = 7'b000_0010; // Display 6
-            4'h7: seg_out = 7'b111_1000; // Display 7
-            4'h8: seg_out = 7'b000_0000; // Display 8
-            4'h9: seg_out = 7'b001_0000; // Display 9
-            default: seg_out = 7'b111_1111; // Display Off
-        endcase
-    end
 endmodule
