@@ -1,9 +1,21 @@
-documentation: 
-  title: "Water Management System Controller"
-  author: "Your Name"
-  description: "Automated pump hysteresis, 60s grace timer, and fault detection system."
+# Documentation and metadata required by tt_tool.py
+project:
+  title: "Water Management System ASIC"
+  author: "WMS Design Team"
+  discord: ""
+  description: "Debounced Water Management Controller with 60s Grace Timer & Alarm Mute Latch"
+  language: "Verilog"
+  clock_hz: 50000000
 
-  # Pinout Configuration
+# Top module name
+top_module: "tt_um_wms_system"
+
+# Source files (relative to src/)
+source_files:
+  - "project.v"
+
+# Pinout configuration for board layout and pin mapping
+pinout:
   inputs:
     - "Tank 10%"
     - "Tank 30%"
@@ -12,18 +24,18 @@ documentation:
     - "Tank 90%"
     - "Tank 100%"
     - "Lower Tank Sensor"
-    - "Flow Probe"
+    - "Water Flow Probe"
   outputs:
-    - "Motor Output"
-    - "Buzzer Output"
-    - "Error LED"
+    - "Pump Relay Driver"
+    - "Fault Indicator LED"
+    - "Alarm Sounder Output"
     - "Lower Tank Active LED"
-    - "Timer Sec Ones [0]"
-    - "Timer Sec Ones [1]"
-    - "Timer Sec Ones [2]"
-    - "Timer Sec Ones [3]"
+    - "Tank 10% LED"
+    - "Tank 50% LED"
+    - "Tank 90% LED"
+    - "Tank 100% LED"
   bidirectional:
-    - "Mute Button"
+    - "Alarm Mute Button"
     - "none"
     - "none"
     - "none"
@@ -31,5 +43,9 @@ documentation:
     - "none"
     - "none"
     - "none"
-# Do not change!
-yaml_version: 6
+
+# Documentation section
+documentation:
+  how_it_works: "Monitors upper and lower tank water sensors with digital debouncing and CDC synchronization. Controls pump output based on hysteresis and tracks a 60-second grace timer for flow verification."
+  how_to_test: "Apply clock and active-low reset. Toggle input sensors to observe pump control on uo_out[0] and fault triggers when water flow probe is inactive."
+  external_hardware: "Water level float sensors, pump relay module, buzzer, status LEDs."
