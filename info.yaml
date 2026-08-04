@@ -1,4 +1,4 @@
-# Documentation and metadata required by tt_tool.py
+# Tiny Tapeout project configuration (Root Level)
 project:
   title: "Water Management System ASIC"
   author: "WMS Design Team"
@@ -7,14 +7,14 @@ project:
   language: "Verilog"
   clock_hz: 50000000
 
-# Top module name
+# Top module name (must match module in project.v)
 top_module: "tt_um_wms_system"
 
-# Source files (relative to src/)
+# Source files (path relative to repo root)
 source_files:
-  - "project.v"
+  - "src/project.v"
 
-# Pinout configuration for board layout and pin mapping
+# Pinout configuration for hardware layout
 pinout:
   inputs:
     - "Tank 10%"
@@ -44,7 +44,7 @@ pinout:
     - "none"
     - "none"
 
-# Documentation section
+# Documentation section required by Tiny Tapeout docs generator
 documentation:
   how_it_works: "Monitors upper and lower tank water sensors with digital debouncing and CDC synchronization. Controls pump output based on hysteresis and tracks a 60-second grace timer for flow verification."
   how_to_test: "Apply clock and active-low reset. Toggle input sensors to observe pump control on uo_out[0] and fault triggers when water flow probe is inactive."
